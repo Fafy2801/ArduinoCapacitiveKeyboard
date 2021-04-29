@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO.Ports;
 using WindowsInput;
+using WindowsInput.Native;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading;
@@ -10,14 +11,15 @@ namespace ArduinoCapacitiveKeyboard
     class Program
     {
         static SerialPort Arduino = new();
-        static InputSimulator Keyboard = new();
+        static InputSimulator Simulator = new();
         static Thread MainThread;
 
         static IEnumerable<string> AvailablePorts;
         static List<bool> LastPressed = new();
+        static List<VirtualKeyCode> Keys = new();
 
         // Default keys to use
-        private static string Keys = "DFJK";
+        static string DefaultKeys = "DFJK";
 
         static void Main(string[] args)
         {
@@ -34,10 +36,11 @@ namespace ArduinoCapacitiveKeyboard
                     Console.WriteLine($"Success! Now using port {Arduino.PortName}");
             }
 
-            Console.WriteLine($"Using default keys {Keys} (reading {Keys.Length} bits).");
-            SetupKeys(Keys);
+            Console.WriteLine($"Input keys to simulate. Nothing = \"{DefaultKeys}\"");
+            string keys = Console.ReadLine();
+            SetupKeys(keys != "" ? keys : DefaultKeys);
 
-            // Run loop
+            // Run loops
             MainThread = new(() =>
             {
                 while (true)
@@ -57,7 +60,7 @@ namespace ArduinoCapacitiveKeyboard
                 // We expect the keys to be sent by bits
                 int inputs = Arduino.ReadByte();
 
-                for(int i = 0; i < Keys.Length; i++)
+                for(int i = 0; i < Keys.Count; i++)
                 {
                     // Key is now pressed
                     if ((inputs & (1 << i)) != 0)
@@ -66,6 +69,7 @@ namespace ArduinoCapacitiveKeyboard
                         if (!LastPressed[i])
                         {
                             LastPressed[i] = true;
+                            Simulator.Keyboard.KeyDown(Keys[i]);
                         }
                     }
                     // Key isn't pressed
@@ -75,8 +79,8 @@ namespace ArduinoCapacitiveKeyboard
                         if (LastPressed[i])
                         {
                             LastPressed[i] = false;
+                            Simulator.Keyboard.KeyUp(Keys[i]);
                         }
-                            
                     }
                 }
             }
@@ -120,8 +124,22 @@ namespace ArduinoCapacitiveKeyboard
         static void SetupKeys(string keys)
         {
             LastPressed.Clear();
+            DefaultKeys = "";
             // Flag as not pressed (because we just added it)
             LastPressed.AddRange(from char key in keys select false);
+
+            for (int i = 0; i < keys.Length; i++)
+            {
+                if (Enum.TryParse<VirtualKeyCode>($"VK_{keys[i]}".ToUpper(), out VirtualKeyCode key))
+                {
+                    Keys.Add(key);
+                    DefaultKeys += keys[i];
+                }
+                else
+                    Console.WriteLine($"Failed to parse key {keys[i]}.");
+            }
+
+            Console.WriteLine($"Now using keys {DefaultKeys} (reading {DefaultKeys.Length} bits).");
         }
     }
 }
