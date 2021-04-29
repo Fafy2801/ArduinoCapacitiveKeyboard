@@ -5,6 +5,7 @@ using WindowsInput.Native;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace ArduinoCapacitiveKeyboard
 {
@@ -13,6 +14,11 @@ namespace ArduinoCapacitiveKeyboard
         static SerialPort Arduino = new();
         static InputSimulator Simulator = new();
         static Thread MainThread;
+        enum InputTypes
+        {
+            Command, Port
+        }
+        static Enum CurrentInput = InputTypes.Command;
 
         static IEnumerable<string> AvailablePorts;
         static List<bool> LastPressed = new();
@@ -21,7 +27,7 @@ namespace ArduinoCapacitiveKeyboard
         // Default keys to use
         static string DefaultKeys = "DFJK";
 
-        static void Main(string[] args)
+        static void Main()
         {
             // We attempt to use COM3, because Arduino seems to always be there
             Console.WriteLine("Attempting to use COM3");
@@ -36,9 +42,8 @@ namespace ArduinoCapacitiveKeyboard
                     Console.WriteLine($"Success! Now using port {Arduino.PortName}");
             }
 
-            Console.WriteLine($"Input keys to simulate. Nothing = \"{DefaultKeys}\"");
-            string keys = Console.ReadLine();
-            SetupKeys(keys != "" ? keys : DefaultKeys);
+            SetupKeys(DefaultKeys);
+            Console.WriteLine("Commands: setkeys setport");
 
             // Run loops
             MainThread = new(() =>
@@ -50,10 +55,22 @@ namespace ArduinoCapacitiveKeyboard
                 }
             });
             MainThread.Start();
+
+            Task.Run(() =>
+            {
+                while (true)
+				{
+                    ConsoleLoop();
+				}
+            });
         }
 
         static void Loop()
         {
+            // Console is doing stuff
+            if (CurrentInput is not InputTypes.Command)
+                return;
+
             // This will fail if the arduino was disconnected
             try
             {
@@ -88,16 +105,7 @@ namespace ArduinoCapacitiveKeyboard
             {
                 Arduino.Close();
                 Console.WriteLine($"Port {Arduino.PortName} was closed. Input new port...");
-                bool succeeded = SetupPort(Console.ReadLine());
-
-                while (!succeeded)
-                {
-                    Console.WriteLine("Failed to use given port. Input new port...");
-                    succeeded = SetupPort(Console.ReadLine());
-
-                    if (succeeded)
-                        Console.WriteLine($"Success! Now using port {Arduino.PortName}");
-                }
+                CurrentInput = InputTypes.Port;
             }
         }
         static bool SetupPort(string port)
@@ -107,6 +115,8 @@ namespace ArduinoCapacitiveKeyboard
             // We can't use it
             if (!AvailablePorts.Contains(port))
                 return false;
+
+            Arduino.Close();
 
             Arduino.PortName = port;
             // For some reason, if the arduino was disconnected GetPortNames will still return it
@@ -124,6 +134,7 @@ namespace ArduinoCapacitiveKeyboard
         static void SetupKeys(string keys)
         {
             LastPressed.Clear();
+            Keys.Clear();
             DefaultKeys = "";
             // Flag as not pressed (because we just added it)
             LastPressed.AddRange(from char key in keys select false);
@@ -140,6 +151,54 @@ namespace ArduinoCapacitiveKeyboard
             }
 
             Console.WriteLine($"Now using keys {DefaultKeys} (reading {DefaultKeys.Length} bits).");
+        }
+
+        static void ConsoleLoop()
+		{
+            string input = Console.ReadLine();
+            // We are expecting a port
+            if (CurrentInput is InputTypes.Port)
+			{
+                bool success = SetupPort(input);
+                if (success)
+				{
+                    Console.WriteLine($"Success! Now using port {Arduino.PortName}");
+                    CurrentInput = InputTypes.Command;
+                }
+				else
+                    Console.WriteLine("Failed to use given port. Input new port...");
+
+                return;
+			}
+
+            string[] args = input.Split(" ");
+
+            if (args.Length < 1)
+                return;
+
+            switch (args[0])
+			{
+                case "setkeys" when args.Length > 1:
+                    SetupKeys(args[1]);
+                    break;
+                case "setkeys":
+                    Console.WriteLine("Failed to setup keys. No keys given.");
+                    break;
+                case "setport" when args.Length > 1:
+                    bool success = SetupPort(args[1]);
+                    if (success)
+                        Console.WriteLine("Failed to setup port.");
+                    else
+                        Console.WriteLine($"Success! Now using port {Arduino.PortName}");
+
+                    break;
+                case "setport":
+                    Console.WriteLine("Failed to setup port. No keys given.");
+                    break;
+                case "help":
+                    Console.WriteLine("Commands: setkeys setport");
+                    break;
+            }
         }
     }
 }
