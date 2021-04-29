@@ -118,7 +118,8 @@ namespace ArduinoCapacitiveKeyboard
         static bool SetupPort(string port)
         {
             // Get all ports we can use
-            AvailablePorts = from available in SerialPort.GetPortNames() where available.StartsWith("COM") select available;
+            //AvailablePorts = from available in SerialPort.GetPortNames() where available.StartsWith("COM") select available;
+            AvailablePorts = SerialPort.GetPortNames().Where(available => available.StartsWith("COM"));
             // We can't use it
             if (!AvailablePorts.Contains(port))
                 return false;
@@ -143,14 +144,14 @@ namespace ArduinoCapacitiveKeyboard
             LastPressed.Clear();
             Keys.Clear();
             DefaultKeys = "";
-            // Flag as not pressed (because we just added it)
-            LastPressed.AddRange(from char key in keys select false);
+ 
 
             for (int i = 0; i < keys.Length; i++)
             {
                 if (Enum.TryParse<VirtualKeyCode>($"VK_{keys[i]}".ToUpper(), out VirtualKeyCode key))
                 {
                     Keys.Add(key);
+                    LastPressed.Add(false);
                     DefaultKeys += keys[i];
                 }
                 else
