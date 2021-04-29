@@ -67,17 +67,24 @@ namespace ArduinoCapacitiveKeyboard
 
         static void Loop()
         {
-            // Console is doing stuff
-            if (CurrentInput is not InputTypes.Command)
+            if (!Arduino.IsOpen)
                 return;
 
             // This will fail if the arduino was disconnected
             try
             {
+                // Don't read buffer when expecting a port input
+                if (CurrentInput is InputTypes.Port)
+                    return;
+
                 // We expect the keys to be sent by bits
                 int inputs = Arduino.ReadByte();
 
-                for(int i = 0; i < Keys.Count; i++)
+                // Console is doing stuff (we're still reading buffer)
+                if (CurrentInput is not InputTypes.Command)
+                    return;
+
+                for (int i = 0; i < Keys.Count; i++)
                 {
                     // Key is now pressed
                     if ((inputs & (1 << i)) != 0)
