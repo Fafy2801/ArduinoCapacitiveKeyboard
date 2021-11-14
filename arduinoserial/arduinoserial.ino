@@ -3,7 +3,7 @@
 int PIN_OUT = 3;
 
 int pins[4] = {5, 6, 10, 11};
-int leds[4] = {8, 9, 12, 4};
+int leds[4] = {4, 7, 12, 13};
 
 int iterations = sizeof(pins) / sizeof(int);
 
